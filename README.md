@@ -45,7 +45,7 @@ The network is trained on agent-based simulation data and simultaneously penalis
 ∂ρ/∂t + ∂φ_x/∂x + ∂φ_y/∂y = 0
 ```
 
-Additionally, the model discovers a **polynomial fundamental diagram** — the macroscopic law that relates density to flux — as a set of 6 learnable scalar parameters (`mu_x[0..2]`, `mu_y[0..2]`).
+Additionally, the model discovers a **polynomial fundamental diagram** ,the macroscopic law that relates density to flux , as a set of 6 learnable scalar parameters (`mu_x[0..2]`, `mu_y[0..2]`).
 
 ### Two-step workflow
 
@@ -61,31 +61,10 @@ Save model + data  ──────►  Generate snapshots / animation / diagr
 
 You only need to re-run `pinn_train.py` when you change the model or the data. For all visual changes, `pinn_plot.py` is sufficient.
 
----
 
-## 2. File Structure
 
-```
-project/
-├── pinn_train.py          ← Training script (slow, run once)
-├── pinn_plot.py           ← Plotting script (fast, run anytime)
-│
-├── pinn_results/          ← Created automatically by pinn_train.py
-│   ├── model.pt           ← Saved weights + architecture info
-│   └── data.npz           ← Saved preprocessed tensors
-│
-├── frames/                ← Created by plot_evolution()
-│   ├── snapshot_000.png
-│   ├── snapshot_001.png
-│   └── ...
-│
-├── crowd_evolution_high_contrast.mp4   ← Created by animate_evolution()
-└── fundamental_diagram.png             ← Created by plot_fundamental_diagram()
-```
 
----
-
-## 3. `pinn_train.py`
+## 2. `pinn_train.py`
 
 ### 3.1 CrowdPINN Model
 
@@ -96,11 +75,11 @@ class CrowdPINN(nn.Module):
 
 The neural network has:
 
-- **Input layer**: 3 neurons — the coordinates `(t, x, y)`
+- **Input layer**: 3 neurons  = the coordinates `(t, x, y)`
 - **Hidden layers**: three fully-connected layers of 128 neurons each, activated with `tanh`
-- **Output layer**: 3 neurons — `(ρ, φ_x, φ_y)`
+- **Output layer**: 3 neurons = density & 2D flux `(ρ, φ_x, φ_y)`
 
-`tanh` is chosen deliberately over `ReLU` because PINNs need to differentiate the network output with respect to the inputs. `tanh` is infinitely differentiable and produces smooth predictions, which makes automatic differentiation via `torch.autograd.grad` stable and accurate. `ReLU` has a zero second derivative almost everywhere, which would kill the PDE loss.
+`tanh` is chosen because PINNs need to differentiate the network output with respect to the inputs. `tanh` is infinitely differentiable and produces smooth predictions, which makes automatic differentiation via `torch.autograd.grad` stable and accurate. On the other hand, something like `ReLU` has a zero second derivative almost everywhere, which would kill the PDE loss.
 
 The `layers` list is stored as an instance attribute (`self.layers`) so that the full architecture can be reconstructed from a checkpoint without hard-coding the shape elsewhere.
 
@@ -111,7 +90,7 @@ self.mu_x = nn.Parameter(torch.randn(3) * 0.1)
 self.mu_y = nn.Parameter(torch.randn(3) * 0.1)
 ```
 
-These are **trainable scalars** (not network weights). They represent the coefficients of the polynomial fundamental diagram (see §3.2). They are initialised with small random values and updated by the same optimiser as the network weights.
+These are trainable scalars ,not network weights. They represent the coefficients of the polynomial fundamental diagram (see §3.2). They are initialised with small random values and updated by the same optimiser as the network weights.
 
 ---
 
@@ -121,14 +100,14 @@ These are **trainable scalars** (not network weights). They represent the coeffi
 def get_poly_flux(self, rho, rho_max=1.0):
 ```
 
-This method evaluates the **macroscopic constitutive law** — the relationship between density and flux encoded as a 4th-degree polynomial. The polynomial has the form:
+This method evaluates the macroscopic constitutive law the relationship between density and flux encoded as a 4th-degree polynomial. The polynomial has the form:
 
 ```
 φ_x(ρ) = μ₁ρ + μ₂ρ² + μ₃ρ³ + μ₄ρ⁴
 φ_y(ρ) = μ₅ρ + μ₆ρ² + μ₇ρ³ + μ₈ρ⁴
 ```
 
-The 4th coefficient (`mu4`) is **not a free parameter** — it is computed analytically from the others to enforce the **boundary condition `φ(ρ_max) = 0`**, meaning no net flux at maximum density (fully jammed crowd):
+The 4th coefficient (`mu4`) is not a free parameter. It is computed analytically from the others to enforce the **boundary condition `φ(ρ_max) = 0`**, meaning no net flux at maximum density (representing a jammed crowd):
 
 ```python
 mu4_x = -(mu_x[0]*rho_max + mu_x[1]*rho_max² + mu_x[2]*rho_max³) / rho_max⁴
@@ -146,7 +125,7 @@ def compute_loss(model, t, x, y, rho_true, phix_true, phiy_true, ...):
 
 The total loss is a weighted sum of three terms:
 
-#### Term 1 — Data Loss (`loss_data`)
+#### Term 1: Data Loss (`loss_data`)
 
 ```
 L_data = mean[ (ρ_pred - ρ_true)² + (φ_x_pred - φ_x_true)² + (φ_y_pred - φ_y_true)² ]
@@ -154,7 +133,7 @@ L_data = mean[ (ρ_pred - ρ_true)² + (φ_x_pred - φ_x_true)² + (φ_y_pred - 
 
 A standard mean-squared-error between the network output and the ground-truth simulation values. This drives the network to fit the data.
 
-#### Term 2 — Polynomial Consistency Loss (`loss_poly`)
+#### Term 2: Polynomial Consistency Loss (`loss_poly`)
 
 ```
 L_poly = mean[ (φ_x_pred - φ_x_poly)² + (φ_y_pred - φ_y_poly)² ]
@@ -162,7 +141,7 @@ L_poly = mean[ (φ_x_pred - φ_x_poly)² + (φ_y_pred - φ_y_poly)² ]
 
 This forces the network's flux outputs to be consistent with the polynomial law. Without this term, the NN could fit the data without learning a meaningful parametric law. This loss bridges the black-box NN with the interpretable polynomial model.
 
-#### Term 3 — PDE Loss (`loss_pde`)
+#### Term 3: PDE Loss (`loss_pde`)
 
 ```python
 drho_dt  = grad(rho_pred,  t, ...)
@@ -173,7 +152,7 @@ pde_residual = drho_dt + dphix_dx + dphiy_dy
 loss_pde = mean(pde_residual²)
 ```
 
-This is the **physics constraint**. The gradients are computed using PyTorch's automatic differentiation (not finite differences). `create_graph=True` is necessary so that these gradients can themselves be differentiated when `loss.backward()` is called during training — this is what makes PINNs computationally expensive compared to standard supervised learning.
+This is the physics constraint. The gradients are computed using PyTorch's automatic differentiation. `create_graph=True` is necessary so that these gradients can themselves be differentiated when `loss.backward()` is called during training.
 
 The total loss is:
 
@@ -181,7 +160,7 @@ The total loss is:
 L_total = w_data · L_data + w_pde · L_pde + w_poly · L_poly
 ```
 
-The default weights are all `1.0`. You can tune them to prioritise data fidelity vs. physical consistency.
+The default weights are all `1.0`. They can be tuned to prioritise importance of respecting data patterns vs. physical consistency.
 
 ---
 
@@ -193,25 +172,25 @@ def load_and_prep_data(filepath, device):
 
 Reads the CSV file (columns: `t, x, y, ρ, φ_x, φ_y`) and applies two normalisation steps:
 
-**Spatial/temporal normalisation — min-max scaling to [0, 1]:**
+**Spatial/temporal normalisation** = **min-max scaling to [0, 1]:**
 ```python
 t = (t - t.min()) / (t.max() - t.min())
 ```
 Applied to `t`, `x`, and `y`. This is critical for PINN training because automatic differentiation involves multiplying gradients through the network depth. If the input coordinates span large ranges (e.g. seconds or metres), gradient signals become numerically unstable. Mapping to [0, 1] keeps gradients well-conditioned.
 
-**Density normalisation — also min-max to [0, 1]:**
+**Density normalisation ** = ** also min-max to [0, 1]:**
 ```python
 rho = (rho - rho.min()) / (rho.max() - rho.min())
 ```
 
-Note: the flux components (`phix`, `phiy`) are **not** normalised. This is intentional — they are used directly in the data loss and their scale is already compatible with the normalised density.
+The flux components (`phix`, `phiy`) are not normalised. They are used directly in the data loss and their scale is already compatible with the normalised density.
 
 ---
 
-### 3.5 Training Loop — Adam Phase
+### 3.5 Training Loop - "Adam" Phase
 
 ```python
-for epoch in range(epochs_adam):  # default: 3500
+for epoch in range(epochs_adam):  # example: 3500
 ```
 
 **Balanced mini-batching:**
@@ -224,19 +203,20 @@ n_emp = batch_size - n_occ
 idx   = torch.cat([idx_occ, idx_emp])
 ```
 
-Without this balancing, the model would be dominated by empty-space samples (which are typically much more numerous), causing it to over-fit the trivial ρ=0 region and under-fit the crowd dynamics. Balanced sampling ensures the network sees enough occupied-space gradients at every step.
+Without this balancing, the model would be dominated by empty-space samples , causing it to over-fit the trivial ρ=0 region and under-fit the crowd dynamics. Balanced sampling ensures the network sees enough occupied-space gradients at every step.
 
-Batch size is 10,000. On each step: compute loss → backpropagate → Adam update.
+Batch size is 10,000 due to computational limits, but can be increased for accuracy. 
+
 
 ---
 
-### 3.6 Training Loop — L-BFGS Phase
+### 3.6 Training Loop - "L-BFGS" Phase
 
 ```python
 optimizer_lbfgs = torch.optim.LBFGS(model.parameters(), max_iter=epochs_lbfgs, ...)
 ```
 
-After Adam has brought the model to a good basin, L-BFGS is used for **fine-tuning**. L-BFGS is a quasi-Newton second-order method that converges much faster than first-order methods near a minimum, at the cost of needing the full gradient of a **fixed** batch.
+After Adam has brought the model around the right "area", L-BFGS is used for fine-tuning. L-BFGS is a quasi-Newton second-order method that converges much faster than first-order methods near a minimum, at the cost of needing the full gradient of a fixed batch.
 
 This is why a single static balanced batch is created before the L-BFGS phase and reused across all its internal iterations (unlike Adam which uses a fresh random batch each step):
 
@@ -306,7 +286,7 @@ def load_model(model_path=MODEL_PATH, device=None):
 def load_data(data_path=DATA_PATH, device=None):
 ```
 
-Loads the `.npz` archive and converts each array back to a PyTorch `float32` tensor on the target device. The data is already normalised (min-max scaled) from the training phase — no preprocessing is needed here.
+Loads the `.npz` archive and converts each array back to a PyTorch `float32` tensor on the target device. The data is already normalised (min-max scaled) from the training phase.
 
 ---
 
@@ -426,55 +406,9 @@ pinn_plot.py   ◄──reads──────────────┘
 
 **`data.npz`** is a NumPy binary archive (essentially a zip of `.npy` files). It stores the six normalised arrays: `t, x, y, rho, phix, phiy`. Loading this instead of re-reading and re-normalising the original CSV guarantees that `pinn_plot.py` operates on exactly the same coordinate system as the trained model.
 
-> **Important**: never change the normalisation in `pinn_train.py` after saving, without re-saving the data. If the model was trained with coordinates scaled to [0, 1] and you later feed it un-scaled coordinates, the predictions will be meaningless.
-
 ---
 
-## 6. Customisation Guide
-
-### Changing the network size
-
-Edit only in `pinn_train.py`:
-```python
-model = CrowdPINN(layers=[3, 256, 256, 256, 256, 3])
-```
-The new architecture is automatically stored in `model.pt` and picked up by `pinn_plot.py` — no changes needed there.
-
-### Changing loss weights
-
-```python
-loss, ... = compute_loss(model, ..., weights=(1.0, 0.5, 2.0))
-#                                              data  pde  poly
-```
-
-Increase `w_pde` to force stronger physics compliance at the cost of data fit. Increase `w_poly` if you see the polynomial law diverging from the scatter data.
-
-### Changing snapshot count or time window
-
-Only in `pinn_plot.py`:
-```python
-SNAPSHOT_NUM_FRAMES = 20    # more frames
-ANIM_TIME_WINDOW    = 0.05  # wider time slice per frame
-```
-
-### Changing colormaps or normalisations
-
-In `pinn_plot.py`, the colormaps and norms are set directly in `animate_evolution()` and `plot_evolution()`:
-```python
-norm_density = colors.PowerNorm(gamma=0.3)   # more contrast
-cmap='inferno'                                 # different colormap
-```
-
-### Running on GPU
-
-No changes needed. Both scripts auto-detect CUDA:
-```python
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-```
-
----
-
-## 7. Dependencies
+## 6. Dependencies
 
 | Package            | Purpose                             |
 |--------------------|-------------------------------------|
